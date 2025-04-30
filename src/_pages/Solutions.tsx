@@ -3,6 +3,9 @@ import React, { useState, useEffect, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { dracula } from "react-syntax-highlighter/dist/esm/styles/prism"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 
 import ScreenshotQueue from "../components/Queue/ScreenshotQueue"
 
@@ -463,6 +466,53 @@ const Solutions: React.FC<SolutionsProps> = ({
     }
   }
 
+  const renderSolutionContent = () => {
+    if (!solutionData) return null;
+    
+    return (
+      <div className="solution-content">
+        {/* Display the full LLM response with gray text */}
+        <div className="full-response text-gray-300">
+          {thoughtsData && thoughtsData.length > 0 && (
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                code({node, inline, className, children, ...props}) {
+                  const match = /language-(\w+)/.exec(className || '');
+                  return !inline && match ? (
+                    <SyntaxHighlighter
+                      style={vscDarkPlus}
+                      language={match[1]}
+                      PreTag="div"
+                      {...props}
+                    >
+                      {String(children).replace(/\n$/, '')}
+                    </SyntaxHighlighter>
+                  ) : (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+                // Add styling for other elements to ensure they're gray
+                p: ({children}) => <p className="text-gray-300">{children}</p>,
+                h1: ({children}) => <h1 className="text-gray-200 text-xl font-bold mt-4 mb-2">{children}</h1>,
+                h2: ({children}) => <h2 className="text-gray-200 text-lg font-bold mt-3 mb-2">{children}</h2>,
+                h3: ({children}) => <h3 className="text-gray-200 text-md font-bold mt-3 mb-1">{children}</h3>,
+                ul: ({children}) => <ul className="text-gray-300 list-disc pl-5 my-2">{children}</ul>,
+                ol: ({children}) => <ol className="text-gray-300 list-decimal pl-5 my-2">{children}</ol>,
+                li: ({children}) => <li className="text-gray-300 my-1">{children}</li>,
+                a: ({href, children}) => <a href={href} className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">{children}</a>
+              }}
+            >
+              {thoughtsData[0]}
+            </ReactMarkdown>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       {!isResetting && queryClient.getQueryData(["new_solution"]) ? (
@@ -523,34 +573,7 @@ const Solutions: React.FC<SolutionsProps> = ({
 
                 {solutionData && (
                   <>
-                    <ContentSection
-                      title={`My Thoughts (${COMMAND_KEY} + Arrow keys to scroll)`}
-                      content={
-                        thoughtsData && (
-                          <div className="space-y-3">
-                            <div className="space-y-1">
-                              {thoughtsData.map((thought, index) => (
-                                <div
-                                  key={index}
-                                  className="flex items-start gap-2"
-                                >
-                                  <div className="w-1 h-1 rounded-full bg-blue-400/80 mt-2 shrink-0" />
-                                  <div>{thought}</div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      }
-                      isLoading={!thoughtsData}
-                    />
-
-                    <SolutionSection
-                      title="Solution"
-                      content={solutionData}
-                      isLoading={!solutionData}
-                      currentLanguage={currentLanguage}
-                    />
+                    {renderSolutionContent()}
 
                     <ComplexitySection
                       timeComplexity={timeComplexityData}

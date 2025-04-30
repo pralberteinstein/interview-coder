@@ -453,7 +453,7 @@ export class ProcessingHelper {
       // Update the user on progress
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Analyzing problem from screenshots...",
+          message: "Analyzing Java question from screenshots...",
           progress: 20
         });
       }
@@ -473,18 +473,18 @@ export class ProcessingHelper {
           }
         }
 
-        // Use OpenAI for processing
+        // Use OpenAI for processing with updated prompt for general Java questions
         const messages = [
           {
             role: "system" as const, 
-            content: "You are a coding challenge interpreter. Analyze the screenshot of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text."
+            content: "You are a Java programming expert. Analyze the screenshot and extract all relevant information about the Java question or problem. Return the information in JSON format with these fields: question_description, key_concepts, code_snippet (if any). Just return the structured JSON without any other text."
           },
           {
             role: "user" as const,
             content: [
               {
                 type: "text" as const, 
-                text: `Extract the coding problem details from these screenshots. Return in JSON format. Preferred coding language we gonna use for this problem is ${language}.`
+                text: `Extract the Java programming question details from these screenshots. Return in JSON format. Each screenshot should be treated as a new, separate question.`
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -525,13 +525,13 @@ export class ProcessingHelper {
         }
 
         try {
-          // Create Gemini message structure
+          // Create Gemini message structure with updated prompt
           const geminiMessages: GeminiMessage[] = [
             {
               role: "user",
               parts: [
                 {
-                  text: `You are a coding challenge interpreter. Analyze the screenshots of the coding problem and extract all relevant information. Return the information in JSON format with these fields: problem_statement, constraints, example_input, example_output. Just return the structured JSON without any other text. Preferred coding language we gonna use for this problem is ${language}.`
+                  text: `You are a Java programming expert. Analyze the screenshots and extract all relevant information about the Java question or problem. Return the information in JSON format with these fields: question_description, key_concepts, code_snippet (if any). Just return the structured JSON without any other text. Each screenshot should be treated as a new, separate question.`
                 },
                 ...imageDataList.map(data => ({
                   inlineData: {
@@ -589,7 +589,7 @@ export class ProcessingHelper {
               content: [
                 {
                   type: "text" as const,
-                  text: `Extract the coding problem details from these screenshots. Return in JSON format with these fields: problem_statement, constraints, example_input, example_output. Preferred coding language is ${language}.`
+                  text: `Extract the Java programming question details from these screenshots. Return in JSON format with these fields: question_description, key_concepts, code_snippet (if any). Each screenshot should be treated as a new, separate question.`
                 },
                 ...imageDataList.map(data => ({
                   type: "image" as const,
@@ -728,38 +728,25 @@ export class ProcessingHelper {
       // Update progress status
       if (mainWindow) {
         mainWindow.webContents.send("processing-status", {
-          message: "Creating optimal solution with detailed explanations...",
+          message: "Creating Java solution...",
           progress: 60
         });
       }
 
-      // Create prompt for solution generation
+      // Create prompt for solution generation for general Java questions
       const promptText = `
-Generate a detailed solution for the following coding problem:
+Provide a solution for the following Java programming question:
 
-PROBLEM STATEMENT:
-${problemInfo.problem_statement}
+QUESTION DESCRIPTION:
+${problemInfo.question_description || problemInfo.problem_statement}
 
-CONSTRAINTS:
-${problemInfo.constraints || "No specific constraints provided."}
+KEY CONCEPTS:
+${problemInfo.key_concepts || problemInfo.constraints || "No specific concepts provided."}
 
-EXAMPLE INPUT:
-${problemInfo.example_input || "No example input provided."}
+CODE SNIPPET (if any):
+${problemInfo.code_snippet || problemInfo.example_input || "No code snippet provided."}
 
-EXAMPLE OUTPUT:
-${problemInfo.example_output || "No example output provided."}
-
-LANGUAGE: ${language}
-
-I need the response in the following format:
-1. Code: A clean, optimized implementation in ${language}
-2. Your Thoughts: A list of key insights and reasoning behind your approach
-3. Time complexity: O(X) with a detailed explanation (at least 2 sentences)
-4. Space complexity: O(X) with a detailed explanation (at least 2 sentences)
-
-For complexity explanations, please be thorough. For example: "Time complexity: O(n) because we iterate through the array only once. This is optimal as we need to examine each element at least once to find the solution." or "Space complexity: O(n) because in the worst case, we store all elements in the hashmap. The additional space scales linearly with the input size."
-
-Your solution should be efficient, well-commented, and handle edge cases.
+Provide a clear, well-structured solution with explanations. Include code examples where appropriate.
 `;
 
       let responseContent;
@@ -773,11 +760,11 @@ Your solution should be efficient, well-commented, and handle edge cases.
           };
         }
         
-        // Send to OpenAI API
+        // Send to OpenAI API with updated system prompt
         const solutionResponse = await this.openaiClient.chat.completions.create({
           model: config.solutionModel || "gpt-4o",
           messages: [
-            { role: "system", content: "You are an expert coding interview assistant. Provide clear, optimal solutions with detailed explanations." },
+            { role: "system", content: "You are an expert Java programming instructor. Provide clear, well-structured solutions with detailed explanations." },
             { role: "user", content: promptText }
           ],
           max_tokens: 4000,
@@ -795,13 +782,13 @@ Your solution should be efficient, well-commented, and handle edge cases.
         }
         
         try {
-          // Create Gemini message structure
+          // Create Gemini message structure with updated prompt
           const geminiMessages = [
             {
               role: "user",
               parts: [
                 {
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
+                  text: `You are an expert Java programming instructor. Provide a clear, well-structured solution for this question:\n\n${promptText}`
                 }
               ]
             }
@@ -850,7 +837,7 @@ Your solution should be efficient, well-commented, and handle edge cases.
               content: [
                 {
                   type: "text" as const,
-                  text: `You are an expert coding interview assistant. Provide a clear, optimal solution with detailed explanations for this problem:\n\n${promptText}`
+                  text: `You are an expert Java programming instructor. Provide a clear, well-structured solution for this question:\n\n${promptText}`
                 }
               ]
             }
@@ -888,72 +875,16 @@ Your solution should be efficient, well-commented, and handle edge cases.
         }
       }
       
-      // Extract parts from the response
+      // Extract code if present, but keep the full response
       const codeMatch = responseContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
-      const code = codeMatch ? codeMatch[1].trim() : responseContent;
+      const code = codeMatch ? codeMatch[1].trim() : "";
       
-      // Extract thoughts, looking for bullet points or numbered lists
-      const thoughtsRegex = /(?:Thoughts:|Key Insights:|Reasoning:|Approach:)([\s\S]*?)(?:Time complexity:|$)/i;
-      const thoughtsMatch = responseContent.match(thoughtsRegex);
-      let thoughts: string[] = [];
-      
-      if (thoughtsMatch && thoughtsMatch[1]) {
-        // Extract bullet points or numbered items
-        const bulletPoints = thoughtsMatch[1].match(/(?:^|\n)\s*(?:[-*•]|\d+\.)\s*(.*)/g);
-        if (bulletPoints) {
-          thoughts = bulletPoints.map(point => 
-            point.replace(/^\s*(?:[-*•]|\d+\.)\s*/, '').trim()
-          ).filter(Boolean);
-        } else {
-          // If no bullet points found, split by newlines and filter empty lines
-          thoughts = thoughtsMatch[1].split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean);
-        }
-      }
-      
-      // Extract complexity information
-      const timeComplexityPattern = /Time complexity:?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*(?:Space complexity|$))/i;
-      const spaceComplexityPattern = /Space complexity:?\s*([^\n]+(?:\n[^\n]+)*?)(?=\n\s*(?:[A-Z]|$))/i;
-      
-      let timeComplexity = "O(n) - Linear time complexity because we only iterate through the array once. Each element is processed exactly one time, and the hashmap lookups are O(1) operations.";
-      let spaceComplexity = "O(n) - Linear space complexity because we store elements in the hashmap. In the worst case, we might need to store all elements before finding the solution pair.";
-      
-      const timeMatch = responseContent.match(timeComplexityPattern);
-      if (timeMatch && timeMatch[1]) {
-        timeComplexity = timeMatch[1].trim();
-        if (!timeComplexity.match(/O\([^)]+\)/i)) {
-          timeComplexity = `O(n) - ${timeComplexity}`;
-        } else if (!timeComplexity.includes('-') && !timeComplexity.includes('because')) {
-          const notationMatch = timeComplexity.match(/O\([^)]+\)/i);
-          if (notationMatch) {
-            const notation = notationMatch[0];
-            const rest = timeComplexity.replace(notation, '').trim();
-            timeComplexity = `${notation} - ${rest}`;
-          }
-        }
-      }
-      
-      const spaceMatch = responseContent.match(spaceComplexityPattern);
-      if (spaceMatch && spaceMatch[1]) {
-        spaceComplexity = spaceMatch[1].trim();
-        if (!spaceComplexity.match(/O\([^)]+\)/i)) {
-          spaceComplexity = `O(n) - ${spaceComplexity}`;
-        } else if (!spaceComplexity.includes('-') && !spaceComplexity.includes('because')) {
-          const notationMatch = spaceComplexity.match(/O\([^)]+\)/i);
-          if (notationMatch) {
-            const notation = notationMatch[0];
-            const rest = spaceComplexity.replace(notation, '').trim();
-            spaceComplexity = `${notation} - ${rest}`;
-          }
-        }
-      }
-
+      // Simplified response format - just return the full response and code if found
       const formattedResponse = {
         code: code,
-        thoughts: thoughts.length > 0 ? thoughts : ["Solution approach based on efficiency and readability"],
-        time_complexity: timeComplexity,
-        space_complexity: spaceComplexity
+        thoughts: [responseContent], // Store the full response in thoughts
+        time_complexity: "", // Empty these fields as we're not using them
+        space_complexity: ""
       };
 
       return { success: true, data: formattedResponse };
@@ -1017,39 +948,18 @@ Your solution should be efficient, well-commented, and handle edge cases.
           };
         }
         
+        // Simplify the prompt to not require specific formatting
         const messages = [
           {
             role: "system" as const, 
-            content: `You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
-
-Your response MUST follow this exact structure with these section headers (use ### for headers):
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).`
+            content: `You are a Java programming expert helping debug and improve code. Analyze these screenshots which include either error messages, incorrect outputs, or Java code, and provide detailed help.`
           },
           {
             role: "user" as const,
             content: [
               {
                 type: "text" as const, 
-                text: `I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis with:
-1. What issues you found in my code
-2. Specific improvements and corrections
-3. Any optimizations that would make the solution better
-4. A clear explanation of the changes needed` 
+                text: `I'm working on this Java question: "${problemInfo.question_description || problemInfo.problem_statement}" and need help with debugging or improving my code. Here are screenshots of my code, the errors or test cases. Please provide a detailed analysis of any issues and how to fix them.` 
               },
               ...imageDataList.map(data => ({
                 type: "image_url" as const,
@@ -1084,27 +994,9 @@ If you include code examples, use proper markdown code blocks with language spec
         
         try {
           const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+You are a Java programming expert helping debug and improve code. Analyze these screenshots which include either error messages, incorrect outputs, or Java code, and provide detailed help.
 
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification (e.g. \`\`\`java).
+I'm working on this Java question: "${problemInfo.question_description || problemInfo.problem_statement}" and need help with debugging or improving my code. Please provide a detailed analysis of any issues and how to fix them.
 `;
 
           const geminiMessages = [
@@ -1165,27 +1057,9 @@ If you include code examples, use proper markdown code blocks with language spec
         
         try {
           const debugPrompt = `
-You are a coding interview assistant helping debug and improve solutions. Analyze these screenshots which include either error messages, incorrect outputs, or test cases, and provide detailed debugging help.
+You are a Java programming expert helping debug and improve code. Analyze these screenshots which include either error messages, incorrect outputs, or Java code, and provide detailed help.
 
-I'm solving this coding problem: "${problemInfo.problem_statement}" in ${language}. I need help with debugging or improving my solution.
-
-YOUR RESPONSE MUST FOLLOW THIS EXACT STRUCTURE WITH THESE SECTION HEADERS:
-### Issues Identified
-- List each issue as a bullet point with clear explanation
-
-### Specific Improvements and Corrections
-- List specific code changes needed as bullet points
-
-### Optimizations
-- List any performance optimizations if applicable
-
-### Explanation of Changes Needed
-Here provide a clear explanation of why the changes are needed
-
-### Key Points
-- Summary bullet points of the most important takeaways
-
-If you include code examples, use proper markdown code blocks with language specification.
+I'm working on this Java question: "${problemInfo.question_description || problemInfo.problem_statement}" and need help with debugging or improving my code. Please provide a detailed analysis of any issues and how to fix them.
 `;
 
           const messages = [
@@ -1246,41 +1120,17 @@ If you include code examples, use proper markdown code blocks with language spec
         }
       }
       
+      // Extract code if present
+      const codeMatch = debugContent.match(/```(?:\w+)?\s*([\s\S]*?)```/);
+      const code = codeMatch ? codeMatch[1].trim() : "";
       
-      if (mainWindow) {
-        mainWindow.webContents.send("processing-status", {
-          message: "Debug analysis complete",
-          progress: 100
-        });
-      }
-
-      let extractedCode = "// Debug mode - see analysis below";
-      const codeMatch = debugContent.match(/```(?:[a-zA-Z]+)?([\s\S]*?)```/);
-      if (codeMatch && codeMatch[1]) {
-        extractedCode = codeMatch[1].trim();
-      }
-
-      let formattedDebugContent = debugContent;
-      
-      if (!debugContent.includes('# ') && !debugContent.includes('## ')) {
-        formattedDebugContent = debugContent
-          .replace(/issues identified|problems found|bugs found/i, '## Issues Identified')
-          .replace(/code improvements|improvements|suggested changes/i, '## Code Improvements')
-          .replace(/optimizations|performance improvements/i, '## Optimizations')
-          .replace(/explanation|detailed analysis/i, '## Explanation');
-      }
-
-      const bulletPoints = formattedDebugContent.match(/(?:^|\n)[ ]*(?:[-*•]|\d+\.)[ ]+([^\n]+)/g);
-      const thoughts = bulletPoints 
-        ? bulletPoints.map(point => point.replace(/^[ ]*(?:[-*•]|\d+\.)[ ]+/, '').trim()).slice(0, 5)
-        : ["Debug analysis based on your screenshots"];
-      
+      // Simplified response format - just return the full response
       const response = {
-        code: extractedCode,
-        debug_analysis: formattedDebugContent,
-        thoughts: thoughts,
-        time_complexity: "N/A - Debug mode",
-        space_complexity: "N/A - Debug mode"
+        code: code,
+        debug_analysis: debugContent,
+        thoughts: [debugContent], // Store the full response in thoughts
+        time_complexity: "", // Empty these fields as we're not using them
+        space_complexity: ""
       };
 
       return { success: true, data: response };

@@ -1,8 +1,9 @@
 export interface Solution {
-  initial_thoughts: string[]
-  thought_steps: string[]
-  description: string
-  code: string
+  code: string;
+  thoughts: string[]; // Now contains the full LLM response as a single element
+  time_complexity: string; // May be empty
+  space_complexity: string; // May be empty
+  debug_analysis?: string; // For debug mode
 }
 
 export interface SolutionsResponse {
